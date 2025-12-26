@@ -1,0 +1,636 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>non-IQ 診断（プロトタイプ）</title>
+  <meta name="description" content="IQでは測れない『思考の癖』をレーダーチャートで可視化する簡易診断（プロトタイプ）" />
+  <style>
+    :root{
+      --bg:#0b0f17; --card:#111827; --muted:#94a3b8; --text:#e5e7eb; --line:#1f2937;
+      --accent:#22c55e; --accent2:#60a5fa;
+    }
+    *{box-sizing:border-box}
+    body{margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+      background: radial-gradient(1200px 700px at 20% 0%, rgba(96,165,250,.18), transparent 60%),
+                  radial-gradient(900px 600px at 80% 10%, rgba(34,197,94,.16), transparent 60%),
+                  var(--bg);
+      color:var(--text);
+    }
+    a{color:inherit}
+    .wrap{max-width:980px; margin:0 auto; padding:28px 16px 56px}
+    .top{display:flex; gap:14px; align-items:flex-start; justify-content:space-between; flex-wrap:wrap}
+    .title{font-size:20px; font-weight:800; letter-spacing:.2px}
+    .sub{color:var(--muted); font-size:13px; line-height:1.5}
+    .pill{display:inline-flex; align-items:center; gap:8px; padding:8px 10px; border:1px solid rgba(148,163,184,.25);
+      border-radius:999px; color:var(--muted); font-size:12px; background:rgba(17,24,39,.55)
+    }
+
+    .card{background:rgba(17,24,39,.74); border:1px solid rgba(148,163,184,.18); border-radius:18px;
+      box-shadow: 0 14px 40px rgba(0,0,0,.25);
+      overflow:hidden;
+    }
+    .card .hd{padding:14px 14px 0}
+    .card .bd{padding:14px}
+
+    .q{padding:12px 14px; border-top:1px solid rgba(148,163,184,.12)}
+    .q:first-of-type{border-top:none}
+    .q-title{font-size:14px; line-height:1.5; margin:0 0 10px}
+    .q-meta{display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap}
+    .tag{font-size:11px; color:var(--muted); padding:3px 8px; border:1px solid rgba(148,163,184,.2); border-radius:999px}
+
+    .opts{display:grid; grid-template-columns:repeat(5, 1fr); gap:8px}
+    @media (max-width:560px){.opts{grid-template-columns:1fr;}}
+    label.opt{display:flex; gap:8px; align-items:center; padding:10px 10px; border:1px solid rgba(148,163,184,.18);
+      border-radius:12px; cursor:pointer; background:rgba(15,23,42,.25)
+    }
+    input[type="radio"]{accent-color: var(--accent2)}
+
+    .actions{display:flex; gap:10px; flex-wrap:wrap; padding:14px; border-top:1px solid rgba(148,163,184,.12); align-items:center}
+    button{border:none; cursor:pointer; font-weight:800; padding:10px 12px; border-radius:12px; color:#0b0f17}
+    .btn-primary{background:linear-gradient(90deg, var(--accent2), var(--accent));}
+    .btn-ghost{background:transparent; color:var(--text); border:1px solid rgba(148,163,184,.22)}
+    .btn-ghost:hover{border-color:rgba(148,163,184,.35)}
+    .btn-danger{background:#ef4444; color:white}
+
+    /* Views */
+    .view{margin-top:16px}
+    .hide{display:none !important}
+
+    /* Result */
+    .resultCard{padding:14px}
+    .resultTop{display:flex; align-items:flex-start; justify-content:space-between; gap:10px; flex-wrap:wrap}
+    .resultTitle{font-weight:900; font-size:16px}
+    .hash{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      color:rgba(148,163,184,.9); font-size:12px}
+
+    #chart{width:100%; height:360px}
+
+    .mini{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:12px}
+    @media (max-width:560px){.mini{grid-template-columns:1fr}}
+    .mini .box{padding:10px; border:1px solid rgba(148,163,184,.16); border-radius:14px; background:rgba(15,23,42,.22)}
+    .mini .k{color:var(--muted); font-size:12px}
+    .mini .v{font-size:14px; font-weight:900; margin-top:4px}
+
+    .note{color:var(--muted); font-size:12px; line-height:1.6}
+
+    /* Share card (PNG化の見栄え) */
+    #shareCard{background:linear-gradient(180deg, rgba(17,24,39,.92), rgba(17,24,39,.72));}
+    #shareFooter{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:10px; flex-wrap:wrap}
+    .brand{font-weight:1000; letter-spacing:.2px}
+    .hashtag{color:rgba(96,165,250,.95); font-weight:900}
+
+    .explain{margin-top:14px; display:grid; grid-template-columns:1fr; gap:10px}
+    .panel{padding:12px; border:1px solid rgba(148,163,184,.16); border-radius:14px; background:rgba(15,23,42,.18)}
+    .panel .h{font-weight:900; margin:0 0 6px; font-size:13px}
+    .panel .p{margin:0; color:var(--muted); font-size:12px; line-height:1.65}
+
+    /* Modal */
+    .modalBack{
+      position:fixed; inset:0; display:flex; align-items:center; justify-content:center; padding:18px;
+      background:rgba(0,0,0,.62); z-index:50;
+    }
+    .modal{
+      width:min(860px, 100%);
+      background:rgba(17,24,39,.96);
+      border:1px solid rgba(148,163,184,.22);
+      border-radius:18px;
+      box-shadow:0 30px 70px rgba(0,0,0,.4);
+      overflow:hidden;
+    }
+    .modalHd{padding:14px 14px 0}
+    .modalTitle{font-weight:1000; font-size:16px}
+    .modalBd{padding:14px}
+    .modalGrid{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+    @media (max-width:860px){.modalGrid{grid-template-columns:1fr}}
+    .modal .actions{border-top:1px solid rgba(148,163,184,.12)}
+
+    .kpi{display:flex; gap:10px; flex-wrap:wrap; margin-top:8px}
+    .kpi .tag{border-color:rgba(96,165,250,.28)}
+  </style>
+</head>
+<body>
+  <!-- 注意事項ポップアップ（初回表示） -->
+  <div id="modalBack" class="modalBack hide" role="dialog" aria-modal="true" aria-label="注意事項">
+    <div class="modal">
+      <div class="modalHd">
+        <div class="modalTitle">注意事項（必読）</div>
+        <div class="sub" style="margin-top:6px">
+          この診断は <b>IQの代替</b> ではなく、IQで測れない領域に“言葉と形”を与えるための <b>娯楽・自己理解ツール</b> です。
+        </div>
+        <div class="kpi">
+          <span class="tag">診断ではありません</span>
+          <span class="tag">優劣ではなく傾向</span>
+          <span class="tag">サンプル内比較</span>
+        </div>
+      </div>
+      <div class="modalBd">
+        <div class="modalGrid">
+          <div class="panel">
+            <p class="h">信頼性について</p>
+            <p class="p">WAIS等の臨床検査とは別物です。数値は「正確さ」ではなく「自分/他者と話すための足場」として扱ってください。</p>
+          </div>
+          <div class="panel">
+            <p class="h">結果収集（平均表示）の意味</p>
+            <p class="p">「受検者サンプル内での平均/中央値/分位」を表示すると、スコアの“見え方”が安定します。ただし一般人口平均との差ではありません。</p>
+          </div>
+          <div class="panel">
+            <p class="h">データの扱い（現状）</p>
+            <p class="p">このプロトタイプは基本的に端末内で完結します。将来、匿名のスコア（6軸のみ）を集計する場合は画面上で明示します。</p>
+          </div>
+          <div class="panel">
+            <p class="h">SNS共有について</p>
+            <p class="p">共有URLにはスコアが短いコードとして含まれます（個人情報は含めない想定）。貼る前に一応確認してください。</p>
+          </div>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn-primary" type="button" id="btnAgree">同意して開始</button>
+        <button class="btn-ghost" type="button" id="btnClose">閉じる（後で読む）</button>
+        <span class="sub" style="margin-left:auto">※同意は端末に保存されます</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <div class="top">
+      <div>
+        <div class="title">non-IQ 診断（プロトタイプ）</div>
+        <div class="sub">回答 → 結果ページ → PNG保存 → X共有（静的サイトで動作）</div>
+      </div>
+      <div class="pill">中間ゴール：<b>結果ページを分離</b>＋<b>共有URL</b></div>
+    </div>
+
+    <!-- View: Quiz -->
+    <div id="viewQuiz" class="view">
+      <div class="card">
+        <div class="hd">
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+            <div style="font-weight:1000">質問（仮）</div>
+            <div class="tag">全12問 / 5段階</div>
+          </div>
+          <div class="sub" style="margin-top:6px">※設問は後で差し替え前提。今は「動く」ことを優先。</div>
+        </div>
+        <form id="quiz"></form>
+        <div class="actions">
+          <button class="btn-primary" type="button" id="btnCalc">結果ページへ</button>
+          <button class="btn-ghost" type="button" id="btnReset">リセット</button>
+          <button class="btn-ghost" type="button" id="btnOpenModal">注意事項</button>
+          <span id="msg" class="sub" style="margin-left:auto"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- View: Result -->
+    <div id="viewResult" class="view hide">
+      <div class="card">
+        <div class="resultCard" id="shareCard">
+          <div class="resultTop">
+            <div>
+              <div class="resultTitle">あなたの non-IQ プロファイル</div>
+              <div class="sub">6軸レーダーチャート（0〜100）</div>
+            </div>
+            <div class="hash" id="sig">sig: -</div>
+          </div>
+
+          <div id="chart"></div>
+          <div class="mini" id="mini"></div>
+
+          <div id="shareFooter">
+            <div class="brand">non-IQ profile</div>
+            <div class="hashtag">#nonIQ診断</div>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="btn-primary" type="button" id="btnPng">結果画像を保存</button>
+          <button class="btn-ghost" type="button" id="btnCopy">共有文をコピー</button>
+          <button class="btn-ghost" type="button" id="btnX">Xで共有</button>
+          <button class="btn-ghost" type="button" id="btnBack">設問に戻る</button>
+        </div>
+
+        <div class="bd">
+          <div class="explain">
+            <div class="panel">
+              <p class="h">結果の見方</p>
+              <p class="p">高い＝優秀、低い＝劣等ではありません。「どの場面で強み/弱点が出やすいか」を言語化するための地図です。</p>
+            </div>
+            <div class="panel">
+              <p class="h">短評（仮）</p>
+              <p class="p" id="shortComment">—</p>
+            </div>
+            <div class="panel">
+              <p class="h">共有URLについて</p>
+              <p class="p">このURLにはスコアを短いコードで埋め込んでいます（現状は端末内処理）。将来OG画像や平均表示を導入する場合、この形式を使います。</p>
+            </div>
+            <div class="panel">
+              <p class="h">注意：統計表示（平均/順位）について</p>
+              <p class="p">平均などを表示する場合は「受検者サンプル内」であることを明記し、N（人数）も併記します。一般人口平均との差としては扱いません。</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Libraries (CDN) -->
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+
+  <script>
+    // ---- Axis definition (SNS向けに短い名前) ----
+    const AXES = [
+      { key:"meta",  name:"メタ視点力" },
+      { key:"redef", name:"再定義力" },
+      { key:"done",  name:"完遂力" },
+      { key:"adapt", name:"適応力" },
+      { key:"emo",   name:"感情制御力" },
+      { key:"other", name:"他者モデル力" },
+    ];
+
+    // ---- Prototype questions (後で差し替え前提) ----
+    // scale: 0..4 (かなり当てはまる=4)
+    // reverse=true は逆転項目（スコア=4-回答）
+    const QUESTIONS = [
+      { axis:"meta",  text:"議論中に『自分が何に引っかかっているか』を言葉にできる", reverse:false },
+      { axis:"meta",  text:"後から『前提がズレてた』と気づくことはあまりない", reverse:true  },
+
+      { axis:"redef", text:"問題を別の言い方・別の切り口に置き換えるのが得意だ", reverse:false },
+      { axis:"redef", text:"一度決めた枠組みを、途中で変えるのは苦手だ", reverse:true },
+
+      { axis:"done",  text:"興味が薄れた後でも、最低限の完成までは持っていける", reverse:false },
+      { axis:"done",  text:"締切がない作業は、未完成のまま放置しがちだ", reverse:true },
+
+      { axis:"adapt", text:"想定外が起きても、すぐに次の手に切り替えられる", reverse:false },
+      { axis:"adapt", text:"ルール変更があると、頭が真っ白になりやすい", reverse:true },
+
+      { axis:"emo",   text:"ストレスがあっても、判断の質が大きく落ちにくい", reverse:false },
+      { axis:"emo",   text:"感情が乗ると、考える前に言葉や行動が出やすい", reverse:true },
+
+      { axis:"other", text:"相手が何を気にしているか（地雷や狙い）を推測しがちだ", reverse:false },
+      { axis:"other", text:"相手の意図は、言われた通りにしか受け取らない", reverse:true },
+    ];
+
+    const OPTS = [
+      { label:"かなり当てはまる", val:4 },
+      { label:"やや当てはまる",   val:3 },
+      { label:"どちらとも言えない", val:2 },
+      { label:"あまり当てはまらない", val:1 },
+      { label:"全く当てはまらない", val:0 },
+    ];
+
+    // ---- DOM refs ----
+    const quizEl = document.getElementById('quiz');
+    const msgEl  = document.getElementById('msg');
+    const viewQuiz = document.getElementById('viewQuiz');
+    const viewResult = document.getElementById('viewResult');
+
+    // Modal
+    const modalBack = document.getElementById('modalBack');
+    const btnAgree = document.getElementById('btnAgree');
+    const btnClose = document.getElementById('btnClose');
+
+    function openModal(){ modalBack.classList.remove('hide'); }
+    function closeModal(){ modalBack.classList.add('hide'); }
+
+    // ---- URL state (query param) ----
+    function getParams(){
+      return new URLSearchParams(location.search);
+    }
+
+    function setParams(params){
+      const q = params.toString();
+      const newUrl = `${location.pathname}${q ? ('?' + q) : ''}`;
+      history.replaceState(null, '', newUrl);
+    }
+
+    function setPage(page){
+      const p = getParams();
+      if(page) p.set('page', page); else p.delete('page');
+      setParams(p);
+    }
+
+    function getPage(){
+      return getParams().get('page') || 'quiz';
+    }
+
+    function setS(encoded){
+      const p = getParams();
+      if(encoded) p.set('s', encoded); else p.delete('s');
+      setParams(p);
+    }
+
+    function getS(){
+      return getParams().get('s');
+    }
+
+    // ---- UI render ----
+    function renderQuestions(){
+      quizEl.innerHTML = '';
+      QUESTIONS.forEach((q, i) => {
+        const axisName = AXES.find(a=>a.key===q.axis)?.name ?? q.axis;
+        const div = document.createElement('div');
+        div.className = 'q';
+        div.innerHTML = `
+          <p class="q-title">Q${i+1}. ${escapeHtml(q.text)}</p>
+          <div class="q-meta">
+            <span class="tag">${axisName}${q.reverse ? '（逆転）' : ''}</span>
+          </div>
+          <div class="opts">
+            ${OPTS.map((o, j) => `
+              <label class="opt">
+                <input type="radio" name="q_${i}" value="${o.val}" ${j===2 ? 'checked' : ''} />
+                <span>${o.label}</span>
+              </label>
+            `).join('')}
+          </div>
+        `;
+        quizEl.appendChild(div);
+      });
+    }
+
+    function escapeHtml(s){
+      return String(s)
+        .replaceAll('&','&amp;')
+        .replaceAll('<','&lt;')
+        .replaceAll('>','&gt;')
+        .replaceAll('"','&quot;')
+        .replaceAll("'",'&#039;');
+    }
+
+    // ---- Scoring ----
+    function getAnswers(){
+      const answers = [];
+      for(let i=0;i<QUESTIONS.length;i++){
+        const sel = quizEl.querySelector(`input[name="q_${i}"]:checked`);
+        answers.push(sel ? Number(sel.value) : 2);
+      }
+      return answers;
+    }
+
+    function computeScores(answers){
+      const totals = Object.fromEntries(AXES.map(a=>[a.key, 0]));
+      const counts = Object.fromEntries(AXES.map(a=>[a.key, 0]));
+
+      QUESTIONS.forEach((q, i) => {
+        const raw = answers[i] ?? 2;
+        const val = q.reverse ? (4 - raw) : raw;
+        totals[q.axis] += val;
+        counts[q.axis] += 1;
+      });
+
+      const scores = {};
+      AXES.forEach(a => {
+        const max = (counts[a.key] || 1) * 4;
+        scores[a.key] = Math.round((totals[a.key] / max) * 100);
+      });
+      return scores;
+    }
+
+    // ---- Signature & encoding ----
+    function scoresToSig(scores){
+      const arr = AXES.map(a=>scores[a.key] ?? 0);
+      let h = 2166136261;
+      for(const x of arr){
+        h ^= x; h = Math.imul(h, 16777619);
+      }
+      return (h >>> 0).toString(16).padStart(8,'0');
+    }
+
+    function encodeScores(scores){
+      const arr = AXES.map(a => (scores[a.key] ?? 0));
+      return arr.map(n => n.toString(36).padStart(2,'0')).join('');
+    }
+
+    function decodeScores(encoded){
+      if(!encoded || encoded.length < AXES.length*2) return null;
+      const arr = [];
+      for(let i=0;i<AXES.length;i++){
+        const chunk = encoded.slice(i*2, i*2+2);
+        const n = parseInt(chunk, 36);
+        if(Number.isNaN(n)) return null;
+        arr.push(Math.max(0, Math.min(100, n)));
+      }
+      const scores = {};
+      AXES.forEach((a,i)=> scores[a.key] = arr[i]);
+      return scores;
+    }
+
+    // ---- Chart ----
+    const chartEl = document.getElementById('chart');
+    const chart = echarts.init(chartEl, null, { renderer: 'canvas' });
+
+    function renderChart(scores){
+      const indicators = AXES.map(a => ({ name: a.name, max: 100 }));
+      const data = AXES.map(a => scores[a.key] ?? 0);
+      const option = {
+        animation: true,
+        backgroundColor: 'transparent',
+        tooltip: { trigger: 'item' },
+        radar: {
+          indicator: indicators,
+          splitNumber: 4,
+          radius: '72%',
+          axisName: { color: 'rgba(229,231,235,.92)', fontSize: 12, fontWeight: 900 },
+          splitLine: { lineStyle: { color: 'rgba(148,163,184,.18)' } },
+          splitArea: { areaStyle: { color: ['rgba(15,23,42,.00)', 'rgba(15,23,42,.18)'] } },
+          axisLine: { lineStyle: { color: 'rgba(148,163,184,.22)' } },
+        },
+        series: [{
+          type: 'radar',
+          data: [{
+            value: data,
+            name: 'non-IQ profile',
+            areaStyle: { opacity: 0.25 },
+            symbol: 'circle',
+            symbolSize: 6,
+            lineStyle: { width: 3 },
+          }]
+        }]
+      };
+      chart.setOption(option);
+
+      const mini = document.getElementById('mini');
+      mini.innerHTML = AXES.map(a => {
+        const v = scores[a.key] ?? 0;
+        const band = v >= 67 ? 'High' : (v >= 34 ? 'Mid' : 'Low');
+        return `
+          <div class="box">
+            <div class="k">${a.name}</div>
+            <div class="v">${band} <span style="color:rgba(148,163,184,.9); font-size:12px; font-weight:800">(${v})</span></div>
+          </div>
+        `;
+      }).join('');
+
+      const sig = scoresToSig(scores);
+      document.getElementById('sig').textContent = `sig: ${sig}`;
+
+      // Short comment (toy)
+      const top2 = [...AXES]
+        .map(a => ({ name:a.name, v:scores[a.key] ?? 0 }))
+        .sort((x,y)=>y.v-x.v)
+        .slice(0,2);
+      const bottom1 = [...AXES]
+        .map(a => ({ name:a.name, v:scores[a.key] ?? 0 }))
+        .sort((x,y)=>x.v-y.v)
+        .slice(0,1);
+
+      document.getElementById('shortComment').textContent =
+        `強め：${top2.map(x=>x.name).join('・')}。/ 相対的に弱め：${bottom1.map(x=>x.name).join('・')}。` +
+        ` ただし高低は善悪ではなく、環境との相性を示す目安。`;
+
+      setTimeout(()=>chart.resize(), 0);
+    }
+
+    window.addEventListener('resize', ()=>chart.resize());
+
+    // ---- Share helpers ----
+    function shareText(scores){
+      const top = [...AXES]
+        .map(a => ({ name:a.name, v:scores[a.key] ?? 0 }))
+        .sort((x,y)=>y.v-x.v)
+        .slice(0,2)
+        .map(x=>x.name)
+        .join('・');
+      return `私のnon-IQプロファイルはこれでした（強め：${top}）
+#nonIQ診断`;
+    }
+
+    async function copyToClipboard(text){
+      try{
+        await navigator.clipboard.writeText(text);
+        msgEl.textContent = '共有文をコピーしました';
+        setTimeout(()=>msgEl.textContent='', 1400);
+      } catch(e){
+        msgEl.textContent = 'コピーに失敗（ブラウザ制限）';
+        setTimeout(()=>msgEl.textContent='', 1600);
+      }
+    }
+
+    async function savePng(){
+      const node = document.getElementById('shareCard');
+      chart.resize();
+      const canvas = await html2canvas(node, { backgroundColor: null, scale: 2 });
+      const a = document.createElement('a');
+      a.download = `nonIQ_profile_${(document.getElementById('sig').textContent || '').replace('sig:','').trim() || 'result'}.png`;
+      a.href = canvas.toDataURL('image/png');
+      a.click();
+    }
+
+    // ---- View routing ----
+    function showQuiz(){
+      viewQuiz.classList.remove('hide');
+      viewResult.classList.add('hide');
+      setPage('quiz');
+      msgEl.textContent = '';
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function showResult(scores){
+      viewQuiz.classList.add('hide');
+      viewResult.classList.remove('hide');
+      setPage('result');
+      // persist scores in URL query for sharing / refresh
+      setS(encodeScores(scores));
+      renderChart(scores);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function currentScoresFromUI(){
+      return computeScores(getAnswers());
+    }
+
+    // ---- Consent ----
+    const CONSENT_KEY = 'nonIQ_consent_v1';
+    function hasConsent(){
+      return localStorage.getItem(CONSENT_KEY) === '1';
+    }
+    function setConsent(){
+      localStorage.setItem(CONSENT_KEY, '1');
+    }
+
+    function maybeShowModal(){
+      if(!hasConsent()) openModal();
+    }
+
+    // ---- Wire buttons ----
+    document.getElementById('btnCalc').addEventListener('click', ()=>{
+      const scores = currentScoresFromUI();
+      showResult(scores);
+    });
+
+    document.getElementById('btnReset').addEventListener('click', ()=>{
+      // reset URL state except page
+      const p = new URLSearchParams();
+      p.set('page','quiz');
+      setParams(p);
+      renderQuestions();
+      msgEl.textContent = 'リセットしました';
+      setTimeout(()=>msgEl.textContent='', 1200);
+    });
+
+    document.getElementById('btnOpenModal').addEventListener('click', openModal);
+
+    document.getElementById('btnBack').addEventListener('click', showQuiz);
+
+    document.getElementById('btnPng').addEventListener('click', async ()=>{
+      // ensure chart updated from URL state
+      const s = getS();
+      const fromUrl = decodeScores(s) || currentScoresFromUI();
+      renderChart(fromUrl);
+      await savePng();
+    });
+
+    document.getElementById('btnCopy').addEventListener('click', async ()=>{
+      const s = getS();
+      const scores = decodeScores(s) || currentScoresFromUI();
+      const text = `${shareText(scores)}
+${location.href}`;
+      await copyToClipboard(text);
+    });
+
+    document.getElementById('btnX').addEventListener('click', ()=>{
+      const s = getS();
+      const scores = decodeScores(s) || currentScoresFromUI();
+      const text = `${shareText(scores)}
+${location.href}`;
+      const url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`;
+      window.open(url, '_blank', 'noopener,noreferrer');
+    });
+
+    btnAgree.addEventListener('click', ()=>{
+      setConsent();
+      closeModal();
+      msgEl.textContent = '同意を保存しました';
+      setTimeout(()=>msgEl.textContent='', 1200);
+    });
+    btnClose.addEventListener('click', closeModal);
+
+    // Close modal if click backdrop
+    modalBack.addEventListener('click', (e)=>{
+      if(e.target === modalBack) closeModal();
+    });
+
+    // ---- Init ----
+    renderQuestions();
+
+    // Route based on query
+    const page = getPage();
+    const s = getS();
+    const scoresFromUrl = decodeScores(s);
+
+    if(page === 'result' && scoresFromUrl){
+      viewQuiz.classList.add('hide');
+      viewResult.classList.remove('hide');
+      renderChart(scoresFromUrl);
+    } else {
+      showQuiz();
+      // neutral default chart stays unseen until result page
+    }
+
+    // show modal on first visit
+    maybeShowModal();
+  </script>
+</body>
+</html>
